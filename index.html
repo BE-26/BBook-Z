@@ -5,6 +5,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Baby Book</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="googlebot" content="noindex, nofollow">
 <meta name="x-build" content="build-1780533909">
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400&family=Nunito:wght@400;600;700;800&display=swap');
@@ -96,7 +98,7 @@
 </style>
 </head>
 <body>
-<div id="lockScreen" style="position:fixed;inset:0;z-index:9999;background:linear-gradient(160deg,#f6f2ff,#efe9f7);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px;text-align:center;font-family:'Nunito',system-ui,sans-serif">
+<div id="lockScreen" style="position:fixed;inset:0;z-index:9999;background:linear-gradient(160deg,#f6f2ff,#efe9f7);display:none;flex-direction:column;align-items:center;justify-content:center;padding:30px;text-align:center;font-family:'Nunito',system-ui,sans-serif">
   <div style="font-size:46px;margin-bottom:6px">🌙</div>
   <div style="font-family:'Fraunces',serif;font-size:30px;font-weight:600;color:#3a3357;margin-bottom:4px">Baby Book</div>
   <div id="lockMsg" style="font-size:14px;font-weight:700;color:#6b6288;margin-bottom:18px;line-height:1.5"></div>
@@ -105,7 +107,7 @@
   <button id="lockBtn" style="margin-top:14px;background:#6b6298;color:#fff;border:none;border-radius:14px;padding:13px 30px;font-size:15px;font-weight:800;font-family:inherit;cursor:pointer">Unlock</button>
   <div id="lockHint" style="font-size:11px;font-weight:600;color:#9b93b5;margin-top:22px;line-height:1.5;max-width:280px"></div>
 </div>
-<div class="wrap" id="appWrap" style="display:none">
+<div class="wrap" id="appWrap" style="display:block">
   <header style="position:relative"><!-- v2 --><button id="themeToggle" style="position:absolute;top:0;right:0;background:var(--card);border:1.5px solid var(--line);border-radius:50%;width:40px;height:40px;font-size:18px;cursor:pointer;box-shadow:var(--shadow)">🌙</button><div class="moon"></div><h1>Baby Book</h1><div class="sub">sleep · feeding · growth · health</div><div class="age" id="dobLine" style="margin-bottom:2px"></div><div class="age" id="age">calculating age…</div><div id="saveStatus" style="font-size:11px;font-weight:700;color:var(--mint);margin-top:4px;height:14px;transition:opacity .3s;opacity:0">saved</div></header>
   <div id="ageBandBanner" style="display:none"></div>
   <div id="glance"></div>
@@ -1379,6 +1381,7 @@ if(document.getElementById('appWrap')&&document.getElementById('appWrap').style.
   let unlockedThisSession=false;try{unlockedThisSession=sessionStorage.getItem(SK)==='1';}catch(e){}
   const stored=getStored();
   if(unlockedThisSession){reveal();return;}
+  reveal();return; /* passcode removed — app opens directly */
   if(!stored){mode='create';msg.textContent='Set a passcode to protect this app.';btn.textContent='Set passcode';hint.textContent='This locks the app on this device. There is no recovery if you forget it, so pick something memorable. Keep a JSON backup regardless.';}
   else{mode='enter';msg.textContent='Enter your passcode.';btn.textContent='Unlock';hint.textContent='Forgotten it? Reset by clearing this site\u2019s data in Safari settings — but that also erases any logged data not saved in a backup.';}
   async function submit(){const v=(inp.value||'').trim();if(!v){err.textContent='Please enter a code.';return;}
