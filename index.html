@@ -375,7 +375,7 @@
 </div>
 <script>
 const APP_BUILD="build-1780533909";
-const DOB=new Date(2026,2,17);let data=[];let history=[];let excludeToday=false;let carrySide=null;let morningWake=null;let bedtime=null;let feedExcluded=false;let lastBackup=null;let napCount=5;let nightFeedCapH=7;let nightFeedFrom=null;let feedIntervalH=null;let nightFeedCapTonight=null;let nextSleepOverride=null;let nextSleepMode='shift';let anchorBedtime=false;let lastAgeBand=null;let tummyTimerStart=null;let windDownStart=null;let floorTimerStart=null;let contTimerStart=null;let contKind='container';let nappyTimerStart=null;let nightRating=null;let nightRatingEditing=false;let dataDay=null;
+const DOB=new Date(2026,2,17);let data=[];let history=[];let excludeToday=false;let carrySide=null;let morningWake=null;let bedtime=null;let feedExcluded=false;let lastBackup=null;let napCount=5;let nightFeedCapH=7;let nightFeedFrom=null;let feedIntervalH=null;let nightFeedCapTonight=null;let nextSleepOverride=null;let nextSleepMode='shift';let anchorBedtime=false;let lastAgeBand=null;let tummyTimerStart=null;let windDownStart=null;let floorTimerStart=null;let contTimerStart=null;let contKind='container';let nappyTimerStart=null;let nightRating=null;let nightRatingEditing=false;let dataDay=null;let actEditIdx=-1;
 // Storage layer: prefer localStorage (reliable across app reopens), fall back to window.storage, then in-memory.
 const PREFIX='babybook_';
 let _mem={};let _storageMode='none';
@@ -468,6 +468,8 @@ function rampWindow(i,n,g){const lo=g.wake[0],hi=g.wake[1];if(n<=1)return Math.r
 function effectiveNapTarget(){const g=ageGuide();const lo=g.naps[0],hi=g.naps[1];return Math.max(lo,Math.min(hi,napCount));}
 const CATNAP_MAX=20;/*minutes: a nap this short or less is a catnap*/
 function dayMinToday(){return Math.round(data.filter(e=>e.type==='nap'&&e.end).reduce((a,e)=>a+durMin(parseT(e.start),parseT(e.end)),0));}
+const NAP_LINK_MIN=20;/* naps separated by a wake shorter than this count as one nap period for scheduling */
+function napPeriods(naps){const s=[...naps].filter(e=>e&&e.end).sort((a,b)=>parseT(a.start)-parseT(b.start));if(!s.length)return 0;let p=1;for(let i=1;i<s.length;i++){const prevEnd=parseT(s[i-1].end).getTime(),curStart=parseT(s[i].start).getTime();if((curStart-prevEnd)/60000>=NAP_LINK_MIN)p++;}return p;}
 function dayTargetMin(){return Math.round(ageGuide().day*60);}
 // Nap length derived from the selected nap count so the day reaches his day-sleep target.
 // Fewer naps -> longer naps. Final nap is a short catnap (30 min); the rest share the remainder.
@@ -495,7 +497,7 @@ function carseatStretchCap(){return ageMonths()<1?30:120;}
 function actTotal(type,kind){return Math.round(data.filter(e=>e.type===type&&(kind?e.kind===kind:true)).reduce((a,e)=>{if(e.dur!=null)return a+e.dur;if(e.end)return a+durMin(parseT(e.start),parseT(e.end));return a;},0));}
 function buildActivities(){if(!document.getElementById('tummyTotal'))return;
   const liveMin=(start)=>start?Math.max(0,Math.round((Date.now()-start)/60000)):0;
-  const logRows=(type,kind,colour,icon,delFn)=>{const items=data.map((e,i)=>[e,i]).filter(([e])=>e.type===type&&(!kind||kind==='all'?true:(e.kind===kind||(!e.kind&&kind==='container'))));return items.length?items.map(([e,i])=>'<div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:600;color:var(--muted);padding:3px 0"><span>'+icon+' '+(e.dur!=null?e.dur:Math.round(durMin(parseT(e.start),parseT(e.end))))+' min · '+fmt(parseT(e.start))+(e.kind==='carseat'?' · car seat':'')+'</span><button class="linkbtn" style="color:'+colour+'" onclick="'+delFn+'('+i+')">remove</button></div>').join(''):'';};
+  const logRows=(type,kind,colour,icon,delFn)=>{const items=data.map((e,i)=>[e,i]).filter(([e])=>e.type===type&&(!kind||kind==='all'?true:(e.kind===kind||(!e.kind&&kind==='container'))));return items.length?items.reverse().map(([e,i])=>{if(i===actEditIdx){return '<div style="display:flex;gap:5px;align-items:center;padding:4px 0"><input type="time" id="aEditStart" value="'+rawHM(e.start||'')+'" style="flex:1;min-width:0"><input type="number" id="aEditDur" min="0" value="'+(e.dur!=null?e.dur:Math.round(durMin(parseT(e.start),parseT(e.end))))+'" style="width:54px"><span style="font-size:11px;color:var(--muted);font-weight:700">min</span><button class="linkbtn" style="color:var(--sky)" onclick="saveAct('+i+')">save</button><button class="linkbtn" style="color:var(--muted)" onclick="cancelAct()">cancel</button></div>';}return '<div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:600;color:var(--muted);padding:3px 0"><span>'+icon+' '+(e.dur!=null?e.dur:Math.round(durMin(parseT(e.start),parseT(e.end))))+' min · '+fmt(parseT(e.start))+(e.kind==='carseat'?' · car seat':'')+'</span><span style="display:flex;gap:9px"><button class="linkbtn" style="color:'+colour+'" onclick="editAct('+i+')">edit</button><button class="linkbtn" style="color:'+colour+'" onclick="'+delFn+'('+i+')">remove</button></span></div>';}).join(''):'';};
   // Tummy
   {const tgt=tummyTarget();const live=liveMin(tummyTimerStart);const shown=actTotal('tummy')+live;document.getElementById('tummyTotal').textContent=shown+' min'+(live?' (timing…)':'');document.getElementById('tummyBar').style.width=Math.min(100,shown/tgt*100)+'%';const pct=Math.round(shown/tgt*100);document.getElementById('tummyTargetLine').textContent='Target ~'+tgt+' min/day ('+ageGuide().label+'), short sessions'+(shown>=tgt?' · 🎉 reached!':' · '+pct+'%');document.getElementById('tummyStartBtn').innerHTML=tummyTimerStart?'⏹ Stop ('+durStr(live)+')':'▶ Start';document.getElementById('tummyLog').innerHTML=logRows('tummy',null,'var(--rose)','🤸','delTummy');}
   // Floor
@@ -509,7 +511,7 @@ function buildActivities(){if(!document.getElementById('tummyTotal'))return;
    if(longest>sessCap)line+='<br><span style="color:var(--rose)">⚠ a single stint ran '+longest+' min — aim for ≤'+sessCap+' min at a time, then a break</span>';
    document.getElementById('contTargetLine').innerHTML=line;document.getElementById('contStartBtn').innerHTML=contTimerStart?'⏹ Stop ('+durStr(live)+')':'▶ Start';document.getElementById('contLog').innerHTML=logRows('container',null,'var(--dusk)','🪑','delContainer');}
   // Bath
-  {const baths=data.filter(e=>e.type==='bath').sort((a,b)=>parseT(a.start)-parseT(b.start));const histBath=[];history.forEach(d=>{if(d.lastBath)histBath.push({date:d.date,t:d.lastBath});});const bl=document.getElementById('bathLine');if(baths.length){const last=baths[baths.length-1];bl.textContent='Last bath: today at '+fmt(parseT(last.start));}else if(histBath.length){const lb=histBath[histBath.length-1];bl.textContent='Last bath: '+lb.date+' at '+lb.t;}else bl.textContent='No bath logged yet.';document.getElementById('bathLog').innerHTML=baths.map((e,idx)=>{const i=data.indexOf(e);return '<div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:600;color:var(--muted);padding:3px 0"><span>🛁 '+fmt(parseT(e.start))+' today</span><button class="linkbtn" style="color:var(--sky)" onclick="delBath('+i+')">remove</button></div>';}).join('');}
+  {const baths=data.filter(e=>e.type==='bath').sort((a,b)=>parseT(a.start)-parseT(b.start));const histBath=[];history.forEach(d=>{if(d.lastBath)histBath.push({date:d.date,t:d.lastBath});});const bl=document.getElementById('bathLine');if(baths.length){const last=baths[baths.length-1];bl.textContent='Last bath: today at '+fmt(parseT(last.start));}else if(histBath.length){const lb=histBath[histBath.length-1];bl.textContent='Last bath: '+lb.date+' at '+lb.t;}else bl.textContent='No bath logged yet.';document.getElementById('bathLog').innerHTML=baths.slice().reverse().map((e)=>{const i=data.indexOf(e);if(i===actEditIdx){return '<div style="display:flex;gap:5px;align-items:center;padding:4px 0"><input type="time" id="aEditStart" value="'+rawHM(e.start||'')+'" style="flex:1;min-width:0"><button class="linkbtn" style="color:var(--sky)" onclick="saveAct('+i+')">save</button><button class="linkbtn" style="color:var(--muted)" onclick="cancelAct()">cancel</button></div>';}return '<div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:600;color:var(--muted);padding:3px 0"><span>🛁 '+fmt(parseT(e.start))+' today</span><span style="display:flex;gap:9px"><button class="linkbtn" style="color:var(--sky)" onclick="editAct('+i+')">edit</button><button class="linkbtn" style="color:var(--sky)" onclick="delBath('+i+')">remove</button></span></div>';}).join('');}
 }
 // Container logRows needs to include legacy no-kind as container; handled via 'all' filter below
 function feedIntervalGuide(){if(feedIntervalH){return{centre:feedIntervalH,lo:Math.max(1.5,feedIntervalH-0.5),hi:feedIntervalH+0.5,custom:true};}
@@ -832,6 +834,9 @@ document.getElementById('contMinsSave').onclick=()=>{const v=parseInt(document.g
 window.delContainer=(i)=>{if(data[i]&&data[i].type==='container'){data.splice(i,1);saveDay();render();}};
 document.getElementById('bathLogBtn').onclick=()=>{data.push({type:'bath',start:nowStr()});saveDay();render();};
 window.delBath=(i)=>{if(data[i]&&data[i].type==='bath'){data.splice(i,1);saveDay();render();}};
+window.editAct=(i)=>{if(data[i]){actEditIdx=i;render();}};
+window.cancelAct=()=>{actEditIdx=-1;render();};
+window.saveAct=(i)=>{const en=data[i];if(!en){actEditIdx=-1;render();return;}const sEl=document.getElementById('aEditStart');if(sEl&&sEl.value){const _off=(typeof en.start==='string'&&en.start.indexOf('|')>=0)?en.start.split('|')[0]+'|':'';en.start=_off+sEl.value;}const dEl=document.getElementById('aEditDur');if(dEl){let d=parseInt(dEl.value);if(isNaN(d)||d<0)d=0;en.dur=d;en.end=addMinToClock(en.start,d);}actEditIdx=-1;saveDay();render();};
 let editIdx=-1;
 document.addEventListener('click',(ev)=>{const b=ev.target.closest('#editSideSeg button');if(b){document.querySelectorAll('#editSideSeg button').forEach(x=>x.classList.remove('on'));b.classList.add('on');const en=data[editIdx];if(en&&en.feedType==='pump'){en.side=b.dataset.side;render();}}
   const tb=ev.target.closest('#editTypeSeg button');if(tb){document.querySelectorAll('#editTypeSeg button').forEach(x=>x.classList.remove('on'));tb.classList.add('on');}});
@@ -919,13 +924,13 @@ function buildGlance(sorted){const box=document.getElementById('glance');if(!box
   let nextLbl='Next nap ~';let nextVal='—';let nextSub='';
   const bedM=effectiveBedtimeMin();const doneG=sleeps.filter(e=>e.end);
   const bd=new Date();bd.setHours(Math.floor(bedM/60),bedM%60,0,0);const wd=new Date(bd.getTime()-30*60000);
-  const napsDoneToday=data.filter(e=>e.type==='nap'&&e.end).length;const napTgt=effectiveNapTarget();
+  const napsDoneToday=napPeriods(data.filter(e=>e.type==='nap'&&e.end));const napTgt=effectiveNapTarget();
   // estimate the next nap's due time from his last wake + positional window
   let napDue=null;if(!liveSleep&&(doneG.length||morningWake)){const _ni=nextNapInfo();if(_ni)napDue=_ni.ideal;}
   // a nap is still "left" if he hasn't reached his count AND the due time is meaningfully before bedtime
   const napStillDue=!liveSleep&&napDue&&napsDoneToday<napTgt&&napDue.getTime()<bd.getTime()-20*60000;
   if(liveSleep){nextVal='—';}
-  else if(napStillDue){nextLbl='Next nap ~';nextVal=fmt5NoAp(napDue);}
+  else if(napStillDue){nextLbl='Next nap ~';nextVal=fmt5NoAp(napDue);const _nm=Math.round((napDue.getTime()-now)/60000);nextSub=_nm>1?'in '+durStr(_nm):(_nm>-20?'about now':'overdue');}
   else if(doneG.length||napsDoneToday>0||(new Date().getHours()*60+new Date().getMinutes())>=bedM-150){nextLbl='Bedtime';nextVal=fmt5NoAp(bd);nextSub='🛁 wind-down '+fmt5NoAp(wd);}
   // tummy time so far today vs target (daytime only — hidden overnight / during night sleep)
   const liveNight=sleeps.some(e=>e.type==='night'&&!e.end);const _nm=new Date().getHours()*60+new Date().getMinutes();const overnight=liveNight||_nm>=bedM||_nm<7*60;
@@ -1026,7 +1031,7 @@ function buildLiveStatus(sorted){const now=Date.now();
 // Shared next-nap computation so the prediction card and the at-a-glance strip always agree.
 function nextNapInfo(){const sleeps=data.filter(e=>(e.type==='nap'||e.type==='night')&&e.end);if(!sleeps.length&&!morningWake)return null;
   const last=sleeps.length?sleeps.reduce((a,b)=>parseT(b.end)>parseT(a.end)?b:a):null;const wake=last?parseT(last.end):parseT(morningWake);
-  const napsDone=data.filter(e=>e.type==='nap'&&e.end).length;const nWin=effectiveNapTarget()+1;const band=Math.round((baseWindow()[1]-baseWindow()[0])/2);
+  const napsDone=napPeriods(data.filter(e=>e.type==='nap'&&e.end));const nWin=effectiveNapTarget()+1;const band=Math.round((baseWindow()[1]-baseWindow()[0])/2);
   const pw=learnedWindowAt(napsDone,nWin);let wmin=Math.max(20,pw.centre-band),wmax=pw.centre+band;
   const catnap=lastNapWasCatnap();if(catnap){wmin=Math.round(wmin*catnapWindowFactor());wmax=Math.round(wmax*catnapWindowFactor());}
   const wakeMin=wake.getHours()*60+wake.getMinutes();const earlyRise=(last&&last.type==='night'&&napsDone===0&&wakeMin<6*60&&wakeMin>=3*60);
@@ -1050,7 +1055,7 @@ function predict(sorted){const sleeps=sorted.filter(e=>(e.type==='nap'||e.type==
   const ideal=_info.ideal;const early=new Date(wake.getTime()+wmin*60000),late=new Date(wake.getTime()+wmax*60000);
   const awakeMin=Math.max(0,Math.round((Date.now()-wake.getTime())/60000));const overdue=awakeMin>wmax;/*already awake longer than the top of his window*/
   const daySoFar=dayMinToday();const dayTgt=dayTargetMin();const dayMet=daySoFar>=dayTgt;
-  const isNight=(dayMet&&data.filter(e=>e.type==='nap').length>=effectiveNapTarget())||ideal.getHours()>=18;
+  const isNight=(dayMet&&napPeriods(data.filter(e=>e.type==='nap'&&e.end))>=effectiveNapTarget())||ideal.getHours()>=18;
   let manualNote='';let shownTime=ideal;
   if(nextSleepOverride){const ov=parseT(nextSleepOverride);if(ov){shownTime=ov;const diff=Math.round((ov-ideal)/60000);const absd=Math.abs(diff);let rel='';if(absd<=10)rel='about the same as the ideal window';else rel=durStr(absd)+(diff<0?' earlier than':' later than')+' the ideal';manualNote=' ⚠ Manual time you set — '+rel+'.';}}
   if(overdue&&!nextSleepOverride&&!isNight){
@@ -1083,7 +1088,7 @@ function buildPlan(sorted){const lw=learnedWindow();const ww=(lw.win[0]+lw.win[1
   const items=[];let cursor=anchorMs;
   items.push({time:cursor,label:'Morning wake & feed',type:'wake',done:anchorKind!=='default'});
   let loggedDayMin=0;loggedNaps.forEach((nn,i)=>{const s=parseT(nn.start).getTime(),e=parseT(nn.end).getTime();const len=Math.round((e-s)/60000);loggedDayMin+=len;items.push({time:s,label:'Nap '+(i+1),type:'nap',dur:len,done:true});items.push({time:e,label:'Wake & feed',type:'wake',done:true});if(e>cursor)cursor=e;});
-  const dayTgt=dayTargetMin();let projDayMin=loggedDayMin;let n=loggedNaps.length;const nWindows=napTarget+1;
+  const dayTgt=dayTargetMin();let projDayMin=loggedDayMin;let n=napPeriods(loggedNaps);let labelN=loggedNaps.length;const nWindows=napTarget+1;
   const ovMs=nextSleepOverride?parseT(nextSleepOverride).getTime():null;
   // Behind-ness is judged from what's actually happened: how much day-sleep he's banked vs how much
   // he "should" have by now, pro-rated across the waking day (7am→usual bedtime). Only when genuinely
@@ -1092,22 +1097,28 @@ function buildPlan(sorted){const lw=learnedWindow();const ww=(lw.win[0]+lw.win[1
   const dayFrac=Math.max(0,Math.min(1,(nowMinOfDay-dayStartMin)/Math.max(1,(ubm-dayStartMin))));
   const expectedByNow=dayTgt*dayFrac;const behindDay=loggedNaps.length>0&&loggedDayMin<expectedByNow-30;
   const eoeMs=endOfEvening();const avgWin=lw.learned?Math.round(ww):Math.round((g.wake[0]+g.wake[1])/2);
-  let guard=0;let i=0;
+  let guard=0;let i=0;let dayMetEarly=false;
   while(guard++<12){
     const remainNeed=Math.max(0,dayTgt-projDayMin);
     if(n>=napTarget)break;
     const widx=n;const w=learnedWindowAt(Math.min(widx,nWindows-1),nWindows).centre;let nap=cursor+w*60000;let manualThis=false;if(i===0&&!ovMs){const _nni=nextNapInfo();if(_nni&&_nni.ideal)nap=Math.max(cursor,_nni.ideal.getTime());}
-    if(i===0&&ovMs){if(nextSleepMode==='only'){const origCursor=cursor;manualThis=true;nap=ovMs;n++;const thisLen0=napLen;projDayMin+=thisLen0;items.push({time:nap,label:'Nap '+n,type:'nap',dur:thisLen0,proj:true,manual:true});cursor=origCursor+w*60000+thisLen0*60000;items.push({time:cursor,label:'Wake & feed',type:'wake',proj:true});i++;continue;}else{nap=ovMs;manualThis=true;}}
+    if(i===0&&ovMs){if(nextSleepMode==='only'){const origCursor=cursor;manualThis=true;nap=ovMs;n++;labelN++;const thisLen0=napLen;projDayMin+=thisLen0;items.push({time:nap,label:'Nap '+labelN,type:'nap',dur:thisLen0,proj:true,manual:true});cursor=origCursor+w*60000+thisLen0*60000;items.push({time:cursor,label:'Wake & feed',type:'wake',proj:true});i++;continue;}else{nap=ovMs;manualThis=true;}}
     if(nap>endOfEvening())break;
     // When he's genuinely behind on day sleep, don't chase the target with long, late naps: any further
     // nap is a short catnap, and we don't start a new nap after 6pm so an earlier bedtime serves him better.
     if(behindDay&&nap>=todayMs(18*60))break;
+    // Over-target guard: once his day-sleep need is met, don't chase the nap count. Only fires in the
+    // afternoon (protects morning naps), never when behind, never over a manual override. If a sensible
+    // bedtime is already reachable, stop adding naps; only if it's still too early to go down do we bridge
+    // with a short catnap rather than a full one.
+    let forceCatnap=false;
+    if(!behindDay&&!manualThis&&projDayMin>=dayTgt&&nap>=todayMs(13*60)){const bedW0=learnedWindowAt(nWindows-1,nWindows).centre;const stopBed=cursor+bedW0*60000;if(stopBed>=todayMs(18*60)){dayMetEarly=true;break;}forceCatnap=true;}
     let thisLen;
-    if(behindDay){thisLen=Math.min(30,napLen);}
+    if(behindDay||forceCatnap){thisLen=Math.min(30,napLen);}
     else{const isLast=(n+1===napTarget);thisLen=isLast?Math.min(30,napLen):napLen;}
     thisLen=Math.max(20,Math.min(NAP_MAX,thisLen));
-    n++;projDayMin+=thisLen;
-    items.push({time:nap,label:'Nap '+n,type:'nap',dur:thisLen,proj:true,manual:manualThis});cursor=nap+thisLen*60000;items.push({time:cursor,label:'Wake & feed',type:'wake',proj:true});
+    n++;labelN++;projDayMin+=thisLen;
+    items.push({time:nap,label:'Nap '+labelN,type:'nap',dur:thisLen,proj:true,manual:manualThis});cursor=nap+thisLen*60000;items.push({time:cursor,label:'Wake & feed',type:'wake',proj:true});
     i++;
   }
   let bedW=learnedWindowAt(nWindows-1,nWindows).centre;let bed=cursor+bedW*60000;
@@ -1124,6 +1135,7 @@ function buildPlan(sorted){const lw=learnedWindow();const ww=(lw.win[0]+lw.win[1
   const bedDate=new Date(bed);const bedMinOfDay=bedDate.getHours()*60+bedDate.getMinutes();const usualBed=effectiveBedtimeMin();
   const finalWindowMin=Math.round((bed-cursor)/60000);/*last wake window before bed*/
   if(bedCapped){bedLabel='Bedtime routine → night sleep (capped)';bedNote='His day started late or naps ran long, so a forward plan would push bedtime past '+fmt(new Date(new Date().setHours(Math.floor(bedtimeCeilingMin()/60),bedtimeCeilingMin()%60,0,0)))+'. I\'ve held bedtime at that age-appropriate latest rather than letting it drift later. The last wake window is shorter than usual as a result, on a day like this it\'s fine to cut the final nap short or skip it to protect bedtime.';}
+  else if(dayMetEarly){bedLabel='Bedtime routine → night sleep (fewer naps — day sleep met)';bedNote='He\'s already had about '+durStr(projDayMin)+' of day sleep (his rough target is ~'+durStr(dayTgt)+'), most of it in longer naps — so rather than adding more naps to reach a count, I\'ve stopped at '+n+' nap'+(n===1?'':'s')+' and put bedtime around '+fmt5(new Date(bed))+', about a normal last wake window after his final nap. Piling on extra late naps on a day like this tends to push day sleep too high and fragment the night. If he\'s clearly wrecked sooner, bring it forward.';}
   else if(bedPulledEarly||dayShort){bedLabel='Bedtime routine → night sleep (earlier — short day)';bedNote='Day sleep came up short ('+durStr(projDayMin)+' of ~'+durStr(dayTgt)+'), so bedtime is brought earlier, to about '+fmt5(new Date(bed))+'. An early night settles better than a long final wake window when he\'s under-slept; one short catnap is fine if he needs it. He\'ll likely wake near his usual time, so don\'t bank on a later morning.';}
   else if(bedMinOfDay>usualBed+30&&!anchorBedtime){bedNote='Projected bedtime ('+fmt5(bedDate)+') is running later than usual ('+fmt(new Date(new Date().setHours(Math.floor(usualBed/60),usualBed%60,0,0)))+'). A late bedtime can itself make for a more broken night, so consider capping the last wake window. The Anchor-bedtime option keeps it from drifting.';}
   // overtired / undertired cue from the final wake window
@@ -1415,8 +1427,8 @@ function buildMedical(){const log=document.getElementById('medLog');if(!log)retu
   const sorted=[...medical].sort((a,b)=>{const ka=a.date+'T'+(a.time||'00:00'),kb=b.date+'T'+(b.time||'00:00');return ka<kb?1:-1;});
   log.innerHTML=banner+'<div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px">History</div>'+sorted.map(m=>{if(m.id===medEditId)return medEditorHtml(m);const d=new Date(m.date).toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'});const tm=m.time?fmt(parseT(m.time)):'';let icon,title,sub;if(m.type==='temp'){const hot=m.temp>=38;icon='🌡️';title='<b style="color:'+(hot?'var(--rose)':'var(--ink)')+'">'+m.temp+'°C</b>'+(hot?' <span style="font-size:11px;color:var(--rose);font-weight:700">(fever)</span>':'');sub=d+' · '+tm+(m.note?' · '+m.note:'');}else if(m.type==='symptom'){icon='🤒';const sevTxt=m.sev?' <span style="font-size:11px;font-weight:700;color:'+(m.sev==='severe'?'var(--rose)':'var(--muted)')+'">('+m.sev+')</span>':'';title='<b>'+m.name+'</b>'+sevTxt;sub=d+' · '+tm+(m.note?' · '+m.note:'');}else if(m.type==='appt'){const future=m.date>=todayK;icon='📅';title='<b>'+m.name+'</b>'+(future?' <span style="font-size:11px;color:var(--mint);font-weight:700">(upcoming)</span>':'');sub=d+(tm?' · '+tm:'')+(m.who?' · '+m.who:'')+(m.note?' · '+m.note:'');}else{icon='💊';title='<b>'+m.name+'</b>'+(m.ml?' · '+m.ml+'ml':'');let _nd='';if(m.repeatHrs){const _p=String(m.date).split('-').map(Number);const _t=String(m.time||'0:0').split(':').map(Number);const _b=new Date(_p[0],(_p[1]||1)-1,_p[2]||1,_t[0]||0,_t[1]||0);const _n=new Date(_b.getTime()+m.repeatHrs*3600000);const _same=_n.toDateString()===_b.toDateString();_nd=' · <b style="color:var(--rose)">next dose '+fmt(_n)+(_same?'':' ('+_n.toLocaleDateString(undefined,{weekday:'short'})+')')+'</b>';}sub=d+' · '+tm+(m.note?' · '+m.note:'')+_nd;}return '<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)"><span style="font-size:17px">'+icon+'</span><div style="flex:1"><div style="font-size:13.5px;font-weight:700">'+title+'</div><div style="font-size:12px;color:var(--muted);font-weight:600">'+sub+'</div></div><button class="del" onclick="startMedEdit(\''+m.id+'\')" style="font-size:14px;margin-right:4px">✎</button><button class="del" onclick="delMedical(\''+m.id+'\')" style="font-size:16px">×</button></div>';}).join('');}
 function refreshLogTimers(){const els=document.querySelectorAll('[data-livedur]');els.forEach(el=>{const start=el.getAttribute('data-livedur');const kind=el.getAttribute('data-livekind');const m=elapsedMin(start);el.textContent=(kind==='feed'?'● feeding ':'● asleep ')+(kind==='feed'?durStrPrecise(m):durStr(Math.round(m)));});}
-setInterval(()=>{if(editIdx!==-1||viewingPrev)return;if(rolloverIfNeeded()){render();return;}const sorted=[...data].sort((a,b)=>parseT(a.start)-parseT(b.start));if(data.some(e=>e.end))predict(sorted);buildLiveStatus(sorted);buildGlance(sorted);refreshLogTimers();buildNightSummary();},30000);
-setInterval(()=>{if(editIdx!==-1||viewingPrev)return;updateWindBtn();if(rolloverIfNeeded()){render();return;}if(autoStopLongFeeds()){render();return;}if((tummyTimerStart||floorTimerStart||contTimerStart||nappyTimerStart)&&activeTab==='sec-activities')buildActivities();if(data.some(e=>!e.end&&((e.type==='feed'&&e.live)||e.type==='nap'||e.type==='night'))){const s=[...data].sort((a,b)=>parseT(a.start)-parseT(b.start));buildLiveStatus(s);buildGlance(s);refreshLogTimers();buildNightSummary();predict(s);
+setInterval(()=>{if(editIdx!==-1||actEditIdx!==-1||viewingPrev)return;if(rolloverIfNeeded()){render();return;}const sorted=[...data].sort((a,b)=>parseT(a.start)-parseT(b.start));if(data.some(e=>e.end))predict(sorted);buildLiveStatus(sorted);buildGlance(sorted);refreshLogTimers();buildNightSummary();},30000);
+setInterval(()=>{if(editIdx!==-1||actEditIdx!==-1||viewingPrev)return;updateWindBtn();if(rolloverIfNeeded()){render();return;}if(autoStopLongFeeds()){render();return;}if((tummyTimerStart||floorTimerStart||contTimerStart||nappyTimerStart)&&activeTab==='sec-activities')buildActivities();if(data.some(e=>!e.end&&((e.type==='feed'&&e.live)||e.type==='nap'||e.type==='night'))){const s=[...data].sort((a,b)=>parseT(a.start)-parseT(b.start));buildLiveStatus(s);buildGlance(s);refreshLogTimers();buildNightSummary();predict(s);
   // live-tick the day-sleep tile + 24h total during a nap
   const lne=data.find(e=>e.type==='nap'&&!e.end);if(lne){let nm=0;data.forEach(en=>{if(en.type==='nap'&&en.end)nm+=durMin(parseT(en.start),parseT(en.end));});nm+=Math.max(0,elapsedMin(lne.start));const nh=nm/60;const dl=document.getElementById('napHours');if(dl)dl.textContent=durStr(Math.round(nh*60));const t24=document.getElementById('total24');if(t24){const nightH2=nightInfo(data).total/60;t24.textContent=durStr(Math.round((nh+nightH2)*60));}const g3=ageGuide();const nb=document.getElementById('napBar');if(nb)nb.style.width=Math.min(100,nh/g3.day*100)+'%';}
   }},1000);
