@@ -1098,6 +1098,11 @@ function buildPlan(sorted){const lw=learnedWindow();const ww=(lw.win[0]+lw.win[1
   const dayFrac=Math.max(0,Math.min(1,(nowMinOfDay-dayStartMin)/Math.max(1,(ubm-dayStartMin))));
   const expectedByNow=dayTgt*dayFrac;const behindDay=loggedNaps.length>0&&loggedDayMin<expectedByNow-30;
   const eoeMs=endOfEvening();const avgWin=lw.learned?Math.round(ww):Math.round((g.wake[0]+g.wake[1])/2);
+  const STRETCH_MAX=120;/* on short/behind days, stretch anchor naps up to ~2h to aim for the day target */
+  let _estFit=0,_ec=cursor,_en=n,_eg=0;
+  while(_eg++<12){if(_en>=napTarget)break;const _enap=_ec+learnedWindowAt(_en,nWindows).centre*60000;if(_enap>eoeMs)break;if(behindDay&&_enap>=todayMs(18*60))break;_estFit++;_en++;_ec=_enap+napLen*60000;}
+  const _remainNeed=Math.max(0,dayTgt-projDayMin);
+  const perNapLen=Math.max(napLen,Math.min(STRETCH_MAX,_estFit?Math.round(_remainNeed/_estFit):napLen));
   let guard=0;let i=0;let dayMetEarly=false;
   while(guard++<12){
     const remainNeed=Math.max(0,dayTgt-projDayMin);
@@ -1114,9 +1119,12 @@ function buildPlan(sorted){const lw=learnedWindow();const ww=(lw.win[0]+lw.win[1
     // with a short catnap rather than a full one.
     let forceCatnap=false;
     if(!behindDay&&!manualThis&&projDayMin>=dayTgt&&nap>=todayMs(13*60)){const bedW0=learnedWindowAt(nWindows-1,nWindows).centre;const stopBed=cursor+bedW0*60000;if(stopBed>=todayMs(18*60)){dayMetEarly=true;break;}forceCatnap=true;}
-    let thisLen;
-    if(behindDay||forceCatnap){thisLen=Math.min(30,napLen);}
-    else{const isLast=(n+1===napTarget);thisLen=isLast?Math.min(30,napLen):napLen;}
+    let thisLen=perNapLen;
+    const isLastByCount=(n+1===napTarget);const fullEnd=nap+perNapLen*60000;const bedCeil=todayMs(bedtimeCeilingMin());
+    // Catnap only when it makes sense: over-target bridging, the last nap by count, or a full nap that
+    // would crowd bedtime (no room for a normal last wake window). Being BEHIND no longer forces catnaps —
+    // earlier in the day he gets full naps to catch up.
+    if(forceCatnap||isLastByCount||fullEnd>bedCeil-90*60000){thisLen=Math.min(30,napLen);}
     thisLen=Math.max(20,Math.min(NAP_MAX,thisLen));
     n++;labelN++;projDayMin+=thisLen;
     items.push({time:nap,label:'Nap '+labelN,type:'nap',dur:thisLen,proj:true,manual:manualThis});cursor=nap+thisLen*60000;items.push({time:cursor,label:'Wake & feed',type:'wake',proj:true});
