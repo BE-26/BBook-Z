@@ -568,7 +568,7 @@ function buildNightSummary(){const box=document.getElementById('nightSummary');i
   box.innerHTML=s;box.style.display=s?'block':'none';}
 function effectiveBedtimeMin(){if(bedtime){const m=parseHM(bedtime);if(m!=null)return m;}
   // infer from earliest evening night-sleep start today
-  const nights=data.filter(e=>e.type==='night').map(e=>parseHM(e.start)).filter(x=>x!=null&&x>=17*60).sort((a,b)=>a-b);
+  const nights=data.filter(e=>e.type==='night'&&!(typeof e.start==='string'&&e.start.indexOf('|')>=0&&parseInt(e.start)<0)).map(e=>parseHM(e.start)).filter(x=>x!=null&&x>=17*60).sort((a,b)=>a-b);
   if(nights.length)return nights[0];
   if(usualBedtime){const um=parseHM(usualBedtime);if(um!=null)return um;}
   return bedtimeForNaps(effectiveNapTarget());/*scales with nap count: more naps -> a little later, capped at the age ceiling*/}
@@ -991,7 +991,7 @@ function buildGlance(sorted){const box=document.getElementById('glance');if(!box
   let feedByTile=t('Next side',sideVal);
   if(overnight){const _lnf=lastNutritiveFeed(data);const _fb=nightFeedFrom?parseT(nightFeedFrom):(_lnf?parseT(_lnf.start):null);if(_fb){feedByTile=t('Feed by',fmt5(new Date(_fb.getTime()+effectiveCap()*3600000)));}}
   const rowFeed='<div class="glrow"><div class="glrow-cat">🤱</div><div class="glrow-tiles">'+t('Last feed',feedVal,feedSub)+feedByTile+t('Feeds today',feedN||'—')+'</div></div>';
-  const rowSleep='<div class="glrow"><div class="glrow-cat">😴</div><div class="glrow-tiles">'+t('Day sleep',totalSleepVal)+t(sleepLbl,sleepVal)+t(nextLbl,nextVal,nextSub)+'</div></div>';
+  const rowSleep='<div class="glrow"><div class="glrow-cat">😴</div><div class="glrow-tiles">'+t('Day sleep',totalSleepVal,'of '+dayRangeStr())+t(sleepLbl,sleepVal)+t(nextLbl,nextVal,nextSub)+'</div></div>';
   const rowAct=overnight?'':'<div class="glrow"><div class="glrow-cat">🤸</div><div class="glrow-tiles">'+t('Tummy time',tummyVal)+'</div></div>';
   box.innerHTML=rowSleep+rowFeed+rowAct;}
 function settleStr(s,short){if(s==null)return '';if(s===0)return ' · ⚡ straight down';return ' · 🛁 '+durStr(s)+(short?'':' to settle');}
