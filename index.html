@@ -1145,11 +1145,11 @@ function buildPlan(sorted){const lw=learnedWindow();const ww=(lw.win[0]+lw.win[1
   const eoeMs=endOfEvening();const avgWin=lw.learned?Math.round(ww):Math.round((g.wake[0]+g.wake[1])/2);
   const STRETCH_MAX=120;/* remaining main naps stretch to make up any day-sleep shortfall so far; catnap reserved */
   const perNapLen=perMainNapLen;
-  let guard=0;let i=0;let dayMetEarly=false;let catnapDropped=false;
+  let guard=0;let i=0;let dayMetEarly=false;let catnapDropped=false;let napOverdue=false;let napOverdueOrig=0;
   while(guard++<12){
     const remainNeed=Math.max(0,dayTgt-projDayMin);
     if(n>=napTarget)break;
-    const widx=n;const w=learnedWindowAt(Math.min(widx,nWindows-1),nWindows).centre;let nap=cursor+w*60000;let manualThis=false;if(i===0&&!ovMs&&!liveNapActive){const _nni=nextNapInfo();if(_nni&&_nni.ideal)nap=Math.max(cursor,_nni.ideal.getTime());}
+    const widx=n;const w=learnedWindowAt(Math.min(widx,nWindows-1),nWindows).centre;let nap=cursor+w*60000;let manualThis=false;if(i===0&&!ovMs&&!liveNapActive){const _nni=nextNapInfo();if(_nni&&_nni.ideal)nap=Math.max(cursor,_nni.ideal.getTime());}if(i===0&&!liveNapActive&&!ovMs&&nap<now-5*60000){napOverdueOrig=nap;nap=now;napOverdue=true;}
     if(i===0&&ovMs){if(nextSleepMode==='only'){const origCursor=cursor;manualThis=true;nap=ovMs;n++;labelN++;const thisLen0=napLen;projDayMin+=thisLen0;items.push({time:nap,label:'Nap '+labelN,type:'nap',dur:thisLen0,proj:true,manual:true});cursor=origCursor+w*60000+thisLen0*60000;items.push({time:cursor,label:'Wake & feed',type:'wake',proj:true});i++;continue;}else{nap=ovMs;manualThis=true;}}
     if(nap>endOfEvening())break;
     // When he's genuinely behind on day sleep, don't chase the target with long, late naps: any further
@@ -1170,15 +1170,15 @@ function buildPlan(sorted){const lw=learnedWindow();const ww=(lw.win[0]+lw.win[1
     if(_isCatnap&&(anchorBedtime||usualBedtime)){const _abed=todayMs(effectiveBedtimeMin());const _catWake=nap+thisLen*60000;if(_abed-_catWake<25*60000){catnapDropped=true;break;}}
     thisLen=Math.max(20,Math.min(NAP_MAX,thisLen));
     n++;labelN++;projDayMin+=thisLen;
-    items.push({time:nap,label:'Nap '+labelN,type:'nap',dur:thisLen,proj:true,manual:manualThis});cursor=nap+thisLen*60000;items.push({time:cursor,label:'Wake & feed',type:'wake',proj:true});
+    items.push({time:nap,label:'Nap '+labelN,type:'nap',dur:thisLen,proj:true,manual:manualThis,cueNote:(napOverdue&&i===0?(_isCatnap?'This catnap is overdue (was due ~'+fmt5(new Date(napOverdueOrig))+'). If he\'ll take a short one now it still bridges to bedtime \u2014 but if he won\'t settle within ~15 min, skip it and start winding down for a slightly earlier night rather than fighting it.':'This nap is overdue (was due ~'+fmt5(new Date(napOverdueOrig))+') \u2014 he\'s likely getting overtired, so settle him as soon as you can. The rest of the day re-times from when he actually goes down.'):undefined)});cursor=nap+thisLen*60000;items.push({time:cursor,label:'Wake & feed',type:'wake',proj:true});
     i++;
   }
-  let bedW=learnedWindowAt(nWindows-1,nWindows).centre;let bed=cursor+bedW*60000;
+  let bedW=learnedWindowAt(nWindows-1,nWindows).centre;let bed=Math.max(cursor+bedW*60000,now+10*60000);
   if(anchorBedtime||usualBedtime){const tgt=new Date();const bm=effectiveBedtimeMin();tgt.setHours(Math.floor(bm/60),bm%60,0,0);if(bed>tgt.getTime())bed=tgt.getTime();}
   // Short-day compensation: if day sleep came up under target, bring bedtime earlier; an early night settles
   // better than a long final wake window when he's under-slept. Scaled by the deficit, never before 6pm.
   const deficitFinal=Math.max(0,dayTgt-projDayMin);let bedPulledEarly=false;
-  if(deficitFinal>30){const pull=Math.min(75,Math.round(deficitFinal/60*20));const baseB=(anchorBedtime||usualBedtime)?effectiveBedtimeMin():bedtimeForNaps(napTarget);const compBed=Math.max(todayMs(Math.max(18*60,baseB-pull)),cursor+30*60000);if(bed>compBed){bed=compBed;bedPulledEarly=true;}}
+  if(deficitFinal>30){const pull=Math.min(75,Math.round(deficitFinal/60*20));const baseB=(anchorBedtime||usualBedtime)?effectiveBedtimeMin():bedtimeForNaps(napTarget);const compBed=Math.max(todayMs(Math.max(18*60,baseB-pull)),cursor+30*60000,now+10*60000);if(bed>compBed){bed=compBed;bedPulledEarly=true;}}
   // Hard ceiling: bedtime can never project past the age-appropriate latest, no matter how late he woke
   // or how the naps fell. The day flexes underneath it; bedtime does not march to midnight.
   let bedCapped=false;const cm=bedtimeCeilingMin();const cap=new Date();cap.setHours(Math.floor(cm/60),cm%60,0,0);if(bed>cap.getTime()){bed=cap.getTime();bedCapped=true;}
