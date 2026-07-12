@@ -1144,7 +1144,7 @@ function buildPlan(sorted){const lw=learnedWindow();const ww=(lw.win[0]+lw.win[1
   const eoeMs=endOfEvening();const avgWin=lw.learned?Math.round(ww):Math.round((g.wake[0]+g.wake[1])/2);
   const STRETCH_MAX=120;/* remaining main naps stretch to make up any day-sleep shortfall so far; catnap reserved */
   const perNapLen=perMainNapLen;
-  let guard=0;let i=0;let dayMetEarly=false;
+  let guard=0;let i=0;let dayMetEarly=false;let catnapDropped=false;
   while(guard++<12){
     const remainNeed=Math.max(0,dayTgt-projDayMin);
     if(n>=napTarget)break;
@@ -1165,7 +1165,8 @@ function buildPlan(sorted){const lw=learnedWindow();const ww=(lw.win[0]+lw.win[1
     // Catnap only when it makes sense: over-target bridging, the last nap by count, or a full nap that
     // would crowd bedtime (no room for a normal last wake window). Being BEHIND no longer forces catnaps —
     // earlier in the day he gets full naps to catch up.
-    if(forceCatnap||isLastByCount||fullEnd>bedCeil-90*60000){thisLen=Math.min(30,napLen);}
+    const _isCatnap=(forceCatnap||isLastByCount||fullEnd>bedCeil-90*60000);if(_isCatnap){thisLen=Math.min(30,napLen);}
+    if(_isCatnap&&(anchorBedtime||usualBedtime)){const _abed=todayMs(effectiveBedtimeMin());const _catWake=nap+thisLen*60000;if(_abed-_catWake<25*60000){catnapDropped=true;break;}}
     thisLen=Math.max(20,Math.min(NAP_MAX,thisLen));
     n++;labelN++;projDayMin+=thisLen;
     items.push({time:nap,label:'Nap '+labelN,type:'nap',dur:thisLen,proj:true,manual:manualThis});cursor=nap+thisLen*60000;items.push({time:cursor,label:'Wake & feed',type:'wake',proj:true});
@@ -1184,7 +1185,8 @@ function buildPlan(sorted){const lw=learnedWindow();const ww=(lw.win[0]+lw.win[1
   let bedLabel='Bedtime routine → night sleep';let bedNote='';
   const bedDate=new Date(bed);const bedMinOfDay=bedDate.getHours()*60+bedDate.getMinutes();const usualBed=effectiveBedtimeMin();
   const finalWindowMin=Math.round((bed-cursor)/60000);/*last wake window before bed*/
-  if(bedCapped){bedLabel='Bedtime routine → night sleep (capped)';bedNote='His day started late or naps ran long, so a forward plan would push bedtime past '+fmt(new Date(new Date().setHours(Math.floor(bedtimeCeilingMin()/60),bedtimeCeilingMin()%60,0,0)))+'. I\'ve held bedtime at that age-appropriate latest rather than letting it drift later. The last wake window is shorter than usual as a result, on a day like this it\'s fine to cut the final nap short or skip it to protect bedtime.';}
+  if(catnapDropped){bedLabel='Bedtime routine → night sleep (final catnap dropped)';bedNote='Skipping the last catnap here — taking it would leave only a few minutes awake before bed, which isn\'t worth it. Bedtime comes a little earlier instead (~'+fmt5(new Date(bed))+'), at the end of a normal wake window. If he\'s flagging sooner, an even earlier night is fine.';}
+  else if(bedCapped){bedLabel='Bedtime routine → night sleep (capped)';bedNote='His day started late or naps ran long, so a forward plan would push bedtime past '+fmt(new Date(new Date().setHours(Math.floor(bedtimeCeilingMin()/60),bedtimeCeilingMin()%60,0,0)))+'. I\'ve held bedtime at that age-appropriate latest rather than letting it drift later. The last wake window is shorter than usual as a result, on a day like this it\'s fine to cut the final nap short or skip it to protect bedtime.';}
   else if(dayMetEarly){bedLabel='Bedtime routine → night sleep (fewer naps — day sleep met)';bedNote='He\'s already had about '+durStr(projDayMin)+' of day sleep (his rough target is ~'+durStr(dayTgt)+'), most of it in longer naps — so rather than adding more naps to reach a count, I\'ve stopped at '+n+' nap'+(n===1?'':'s')+' and put bedtime around '+fmt5(new Date(bed))+', about a normal last wake window after his final nap. Piling on extra late naps on a day like this tends to push day sleep too high and fragment the night. If he\'s clearly wrecked sooner, bring it forward.';}
   else if(bedPulledEarly||dayShort){bedLabel='Bedtime routine → night sleep (earlier — short day)';bedNote='Day sleep came up short ('+durStr(projDayMin)+' of ~'+durStr(dayTgt)+'), so bedtime is brought earlier, to about '+fmt5(new Date(bed))+'. An early night settles better than a long final wake window when he\'s under-slept; one short catnap is fine if he needs it. He\'ll likely wake near his usual time, so don\'t bank on a later morning.';}
   else if(bedMinOfDay>usualBed+30&&!anchorBedtime){bedNote='Projected bedtime ('+fmt5(bedDate)+') is running later than usual ('+fmt(new Date(new Date().setHours(Math.floor(usualBed/60),usualBed%60,0,0)))+'). A late bedtime can itself make for a more broken night, so consider capping the last wake window. The Anchor-bedtime option keeps it from drifting.';}
